@@ -1,0 +1,5 @@
+# Ignore the model weights
+fst_1_3B_local/
+
+# Ignore large data/embedding files
+*.json
