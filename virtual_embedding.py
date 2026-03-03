@@ -1,18 +1,16 @@
-# extracting V from model.py line 198 : v = self.norm_attn_v(e)
-
 import torch
 import json
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 
-def extract_normed_v_embeddings(
-    text: str, 
+def extract_single_word_head_v(
+    word: str, 
     model_path: str = "./fst_1_3B_local", 
-    save_path: str = "normed_v_embeddings.json"
+    save_path: str = "single_word_heads_v.json"
 ):
     print(f"Loading tokenizer from {model_path}...")
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
     
-    print("Loading config and model weights...")
+    print("Loading config and model...")
     config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     config.tie_word_embeddings = False 
     
@@ -24,41 +22,57 @@ def extract_normed_v_embeddings(
     )
     model.eval()
 
-    inputs = tokenizer(text, return_tensors="pt")
+    # 输入单个单词
+    inputs = tokenizer(word, return_tensors="pt")
     input_ids = inputs["input_ids"].to(model.device)
     tokens = tokenizer.convert_ids_to_tokens(input_ids[0])
     
-    print(f"\nInput text: '{text}'")
-    print(f"Tokens: {tokens}")
+    print(f"\nTarget Word: '{word}'")
+    print(f"Tokenized into: {tokens}")
+    
+    if len(tokens) > 1:
+        print("⚠️ Warning: Your word was split into multiple tokens. We will only analyze the FIRST token.")
 
+    # 准备保存的数据结构
     result_dict = {
-        "input_text": text,
-        "tokens": tokens,
-        "token_ids": input_ids[0].tolist(),
-        "normed_v_by_layer": {}
+        "word": word,
+        "analyzed_token": tokens[0],
+        "token_id": input_ids[0][0].item(),
+        "heads_v_by_layer": {}
     }
 
     with torch.no_grad():
-        # 获取原始输入 e (Token Embeddings)
+        # 获取输入
         e = model.get_input_embeddings()(input_ids)
+        # 只取第一个 Token 的 Embedding
+        # shape 变成 [1, 1, 2048]
+        e_first_token = e[:, 0:1, :] 
         
-        # 遍历所有的 Predictive Blocks
         for i, block in enumerate(model.model.predictive_blocks):
+            # 1. 过 LayerNorm
+            v_normed = block.norm_attn_v(e_first_token)
             
-            # 严格按照你的发现：只提取经过当前层 LayerNorm 的结果
-            # 这里的 v 形状为 [batch_size=1, seq_len, hidden_size]
-            v = block.norm_attn_v(e)
+            # 2. 过 V 的线性投影 (这一步才真正生成了该层专属的 V 特征)
+            v_projected = block.attn.v_proj(v_normed) 
             
-            # 转换为 Python 列表并保存
-            result_dict["normed_v_by_layer"][f"layer_{i}"] = v[0].tolist()
-            print(f"Extracted normed 'v' for Predictive Layer {i}")
+            # 3. 模拟 Attention 内部的分头逻辑 (重点！)
+            B, T, hidden_size = v_projected.size()
+            num_heads = block.attn.num_attention_heads
+            head_dim = block.attn.head_dim
+            
+            # shape 转换: [1, 1, 2048] -> [1, 1, 32, 64] -> 去掉 batch 和 seq 维度 -> [32, 64]
+            v_heads = v_projected.view(B, T, num_heads, head_dim)[0, 0]
+            
+            # 保存为一个包含 32 个列表的列表，每个列表长度为 64
+            result_dict["heads_v_by_layer"][f"layer_{i}"] = v_heads.tolist()
+            print(f"Extracted [32 heads x 64 dim] 'v' for Predictive Layer {i}")
 
-    # 写入 JSON 文件
     with open(save_path, "w", encoding="utf-8") as f:
         json.dump(result_dict, f, ensure_ascii=False, indent=2)
         
-    print(f"\nSuccessfully saved normed 'v' embeddings to {save_path}!")
+    print(f"\nSuccessfully saved multi-head 'v' to {save_path}!")
 
 if __name__ == "__main__":
-    custom_input = "Hello, world! I am testing the predictive branch."
-    extract_normed_v_embeddings(text=custom_input)
+    # 输入一个你想探究的单词
+    target_word = "apple" 
+    extract_single_word_head_v(word=target_word)
