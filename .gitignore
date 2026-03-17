@@ -3,6 +3,7 @@ fst_1_3B_local/
 
 # Ignore large data/embedding files
 *.json
+*.jsonl
 
 *pca_results/
 *.gz
