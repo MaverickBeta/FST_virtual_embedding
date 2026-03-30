@@ -29,22 +29,36 @@ def extract_v_embeddings(
     model.eval()
 
     # ==========================================
-    # 精确架构识别器
+    # 精确架构识别与拉链式重组 (Zip Interleaving)
     # ==========================================
     base_model = getattr(model, "model", model)
+    blocks = []
     
-    if hasattr(base_model, "predictive_blocks"):
-        print("✅ Detected FST architecture (`predictive_blocks`).")
-        blocks = base_model.predictive_blocks
+    if hasattr(base_model, "feature_blocks") and hasattr(base_model, "predictive_blocks"):
+        print("✅ Detected FST architecture: 'feature_blocks' & 'predictive_blocks'.")
+        # 像拉链一样交替拼装 (Feature 0, Predictive 0, Feature 1, Predictive 1...)
+        for f_block, p_block in zip(base_model.feature_blocks, base_model.predictive_blocks):
+            blocks.append(f_block)
+            blocks.append(p_block)
+        print(f"🔗 Interleaved into {len(blocks)} unified layers.")
         arch_type = "FST"
+        
+    elif hasattr(base_model, "predictive_blocks"):
+        # 兼容备用情况：只有 predictive_blocks
+        print("✅ Detected FST (Predictive ONLY).")
+        blocks = base_model.predictive_blocks
+        arch_type = "FST_PRED_ONLY"
+        
     elif hasattr(base_model, "blocks"):
         print("✅ Detected Standard Transformer architecture (`blocks`).")
         blocks = base_model.blocks
+        print(f"🔗 Found {len(blocks)} standard layers.")
         arch_type = "STANDARD"
+        
     else:
-        raise ValueError("Unrecognized architecture! Neither 'predictive_blocks' nor 'blocks' found in model.")
+        raise ValueError("Unrecognized architecture! Check model structure.")
 
-    print(f"\n🚀 Extracting vectors and saving to {save_path}...")
+    print(f"\n🚀 Extracting vectors from {len(blocks)} layers and saving to {save_path}...")
 
     with open(save_path, "w", encoding="utf-8") as f_out:
         with torch.no_grad():
@@ -67,15 +81,15 @@ def extract_v_embeddings(
                 for i, block in enumerate(blocks):
                     layer_dict = {}
                     
-                    # 针对两种模型，走各自正确的 LayerNorm 路径
-                    if arch_type == "FST":
-                        # FST 的 V 向量有专属的 LayerNorm
+                    # 智能探测 LayerNorm 路径（FST 通常是 norm_attn_v，Standard 是 norm_attn）
+                    if hasattr(block, "norm_attn_v"):
                         v_normed = block.norm_attn_v(e_single_token)
-                    else:
-                        # Standard Transformer 使用统一的 norm_attn
+                    elif hasattr(block, "norm_attn"):
                         v_normed = block.norm_attn(e_single_token)
+                    else:
+                        raise AttributeError(f"LayerNorm not found in block {i}!")
                     
-                    # V 的线性映射，两者名称完全一致
+                    # V 的线性映射
                     v_projected = block.attn.v_proj(v_normed)
                     
                     # 获取分头参数
@@ -94,7 +108,7 @@ def extract_v_embeddings(
 
                 f_out.write(json.dumps(result_dict, ensure_ascii=False) + "\n")
 
-    print(f"🎉 All done! Successfully processed {len(word_dict)} words.")
+    print(f"🎉 All done! Successfully processed {len(word_dict)} words across {len(blocks)} layers.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract virtual embeddings dynamically.")
