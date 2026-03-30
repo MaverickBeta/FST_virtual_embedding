@@ -84,8 +84,13 @@ def extract_and_save_top_words(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Extract top pure words from a model's tokenizer.")
-    parser.add_argument("--model_path", type=str, default="./fst_1_3B_local", help="Path or HuggingFace ID of the model")
-    parser.add_argument("--save_path", type=str, default="top_200_words.json", help="Output JSON file name")
+    
+    # 【修改点 1】：默认模型路径指向 models/ 文件夹
+    parser.add_argument("--model_path", type=str, default="models/fst_1_3B_local", help="Path or HuggingFace ID of the model")
+    
+    # 【修改点 2】：默认输出路径指向 data/ 文件夹
+    parser.add_argument("--save_path", type=str, default="data/top_200_words.json", help="Output JSON file name")
+    
     parser.add_argument("--top_n", type=int, default=200, help="Number of top words to extract")
     
     args = parser.parse_args()

@@ -13,6 +13,8 @@
 # 忽略 RSA 和 t-SNE 的结果文件夹
 rsa_results/
 tsne_results/
+comprehensive_results/
+data/
 
 # --- 模型与本地依赖 (Models & Libraries) ---
 # 忽略本地的模型权重或库文件夹

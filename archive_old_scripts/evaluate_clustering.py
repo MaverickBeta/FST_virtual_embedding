@@ -9,6 +9,7 @@ import argparse
 
 def load_data(jsonl_path: str):
     """提取每层的特征矩阵，并保持词汇顺序一致"""
+    # loading the jsonl files in and arrange into the required form
     data_cache = {}
     words_found = []
     
@@ -37,6 +38,7 @@ def load_data(jsonl_path: str):
 
 def build_ideal_rdm(words_found: list, json_labels_path: str):
     """构建人类视角的理想概念矩阵 (Target RDM)"""
+    # building the ideal matrix, so-called the ground truth matrix 
     with open(json_labels_path, "r", encoding="utf-8") as f:
         labels_dict = json.load(f)
     
@@ -119,14 +121,14 @@ def run_evaluation(args):
                 # 计算 Top-K 平均
                 plot_fst_y.append(np.mean(sorted(fst_scores[L], reverse=True)[:args.top_k]))
                 plot_std_y.append(np.mean(sorted(std_scores[L], reverse=True)[:args.top_k]))
-                ylabel = f"RSA Score (Top-{args.top_k} Heads Mean)"
+                ylabel = f"RSA Score (Pearson r) (Top-{args.top_k} Heads Mean)"
                 title = f"Committee Purity: Top-{args.top_k} Experts Evolution"
                 ylim_max = 1.0
             else:
                 # 计算及格人数 (Threshold)
                 plot_fst_y.append(sum(1 for s in fst_scores[L] if s >= args.threshold))
                 plot_std_y.append(sum(1 for s in std_scores[L] if s >= args.threshold))
-                ylabel = f"Number of 'Expert' Heads (r >= {args.threshold})"
+                ylabel = f"Number of 'Expert' Heads (r >= {args.threshold}) (Pearson r)"
                 title = f"Expert Emergence: Heads Learning Human Semantics (Threshold {args.threshold})"
                 ylim_max = 32 # 最多32个头
 
@@ -176,7 +178,7 @@ def run_evaluation(args):
         ax.plot([], [], color='#d62728', linewidth=8, alpha=0.7, label='FST Feature Block Distribution')
         ax.plot([], [], color='#ff7f0e', linewidth=8, alpha=0.7, label='FST Predictive Block Distribution')
 
-        ylabel = "RSA Score Distribution (All 32 Heads)"
+        ylabel = "RSA Score (Pearson r) (All 32 Heads)"
         title = "Panoramic Distribution: Hero Heads vs Noise (Violin Plot)"
         ax.set_ylim(min(np.min(fst_data), np.min(std_data)) - 0.1, 1.0)
 
@@ -198,7 +200,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fst", type=str, default="fst_heads_v.jsonl")
     parser.add_argument("--std", type=str, default="standard_heads_v.jsonl")
-    parser.add_argument("--labels", type=str, default="fst_top_200.json")
+    parser.add_argument("--labels", type=str, default="top_200_words.json")
     parser.add_argument("--out", type=str, default="rsa_results")
     
     # 核心模式控制参数
