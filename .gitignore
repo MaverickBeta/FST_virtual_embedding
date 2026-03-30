@@ -1,9 +1,31 @@
-# Ignore the model weights
-fst_1_3B_local/
-
-# Ignore large data/embedding files
+# --- 数据与大型文件 (Data & Large Files) ---
+# 忽略所有的 JSON 和 JSONL 结果文件（包含你列出的 top_200, heads_v 等）
 *.json
 *.jsonl
+# 如果某些 JSON 是必须的配置文件，可以用 !config.json 排除
 
-*pca_results/
-*.gz
+# 忽略所有的压缩包
+*.tar.gz
+*.zip
+*.7z
+
+# --- 实验结果目录 (Results Directories) ---
+# 忽略 RSA 和 t-SNE 的结果文件夹
+rsa_results/
+tsne_results/
+
+# --- 模型与本地依赖 (Models & Libraries) ---
+# 忽略本地的模型权重或库文件夹
+fst_1_3B_local/
+
+# --- 运行环境与日志 (Environment & Logs) ---
+.venv/
+env/
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+
+# --- 如果你有使用远程 WandB 或类似工具产生的缓存 ---
+wandb/
